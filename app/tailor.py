@@ -76,7 +76,7 @@ def tailor_job(job_id: int):
         if len(header_split) < 2:
             raise ValueError("Invalid HTTP response layout received from service socket.")
             
-        json_body = header_split[1]
+        json_body = header_split[1] # Exact array index extraction target fix
         res_json = json.loads(json_body)
         
         raw_content = res_json["choices"]["message"]["content"]

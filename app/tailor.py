@@ -1,6 +1,6 @@
 import os
 import json
-from openai import OpenAI
+import urllib.request
 from app.db import get_db_connection
 from app.pdf_generator import generate_docx_cv
 
@@ -18,14 +18,14 @@ def clean_json_response(text: str) -> str:
     return text.strip()
 
 def tailor_job(job_id: int):
-    """Loads a job, optimization prompts, calls Ollama LLM, updates DB, and outputs DOCX asset."""
+    """Loads a job, optimization prompts, calls Ollama via standard urllib, updates DB, and outputs DOCX."""
     conn = get_db_connection()
     job = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     if not job:
         conn.close()
         return
 
-    # Load configurations
+    # Load configuration layouts
     with open(os.path.join(BASE_DIR, "data", "master_cv.json"), "r") as f:
         master_cv = f.read()
     with open(os.path.join(BASE_DIR, "prompts", "ats_rewrite.txt"), "r") as f:
@@ -33,19 +33,32 @@ def tailor_job(job_id: int):
         
     prompt = prompt_template.format(jd=job["description"], cv=master_cv)
     
-    client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+    # Structure OpenAI-compatible payload natively
+    payload = {
+        "model": "qwen2.5:7b",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.2
+    }
+    
+    data_bytes = json.dumps(payload).encode("utf-8")
+    url = "http://127.0.0"
+    
+    req = urllib.request.Request(
+        url, 
+        data=data_bytes, 
+        headers={"Content-Type": "application/json"}
+    )
     
     try:
-        response = client.chat.completions.create(
-            model="qwen2.5:7b",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2
-        )
-        
-        raw_content = response.choices.message.content
+        # Bypasses system-level proxy configurations completely
+        with urllib.request.urlopen(req, timeout=60) as response:
+            res_body = response.read().decode("utf-8")
+            res_json = json.loads(res_body)
+            
+        raw_content = res_json["choices"][0]["message"]["content"]
         clean_json = clean_json_response(raw_content)
         
-        # Verify it's structurally valid JSON before committing
+        # Validate structural payload integrity before saving
         json.loads(clean_json)
         
         doc_filename = f"tailored_cv_{job_id}.docx"

@@ -37,8 +37,15 @@ jobs:
 
       - name: Run E2E Integration and Compilation Test
         run: |
-          # 1. Start the Mock Server directly inside this step's environment execution path
           python -c '
+          import subprocess
+          import socket
+          import time
+          import sys
+          import os
+
+          # 1. Inline Mock FastAPI code written cleanly to a temporary script
+          mock_code = """
           from fastapi import FastAPI
           import uvicorn
           app = FastAPI()
@@ -47,32 +54,52 @@ jobs:
               return {
                   "choices": [{
                       "message": {
-                          "content": "{\"summary\": \"Mocked summary matching the JD\", \"experience\": [], \"skills\": []}"
+                          "content": "{\\"summary\\": \\"Mocked summary matching the JD\\", \\"experience\\": [], \\"skills\\": []}"
                       }
                   }]
               }
-          uvicorn.run(app, host="127.0.0.1", port=11434)
-          ' &
+          if __name__ == "__main__":
+              uvicorn.run(app, host="127.0.0.1", port=11434)
+          """
+          with open("mock_server.py", "w") as f:
+              f.write(mock_code.strip())
+
+          # 2. Spawn mock server as a strict managed child process
+          print("Spawning managed Mock Ollama API process...")
+          server_proc = subprocess.Popen([sys.executable, "mock_server.py"])
+
+          # 3. Block and poll until the port is definitively open
+          print("Polling 127.0.0.1:11434 for socket initialization...")
+          connected = False
+          for i in range(15):
+              try:
+                  with socket.create_connection(("127.0.0.1", 11434), timeout=1):
+                      print("Socket interface confirmed active and reachable on port 11434!")
+                      connected = True
+                      break
+              except OSError:
+                  print(f"Port 11434 not listening yet... ({i+1}/15)")
+                  time.sleep(1)
+
+          if not connected:
+              print("Error: Mock server socket failed to bind.")
+              server_proc.terminate()
+              sys.exit(1)
+
+          # 4. Run the worker script synchronously within the exact same process allocation window
+          print("Executing worker logic synchronously...")
+          worker_res = subprocess.run([sys.executable, "-m", "app.worker"])
+
+          # 5. Clean up the server process safely
+          server_proc.terminate()
+          server_proc.wait()
+
+          # 6. Bubble up worker exit codes straight to the GitHub runner
+          if worker_res.returncode != 0:
+              sys.exit(worker_res.returncode)
+          '
           
-          # 2. Wait explicitly for the port listener layer to become active
-          echo "Verifying local mock LLM port listener is completely initialized..."
-          for i in {1..15}; do
-            if nc -z 127.0.0.1 11434; then
-              echo "Mock Ollama API is live and listening on port 11434!"
-              break
-            fi
-            echo "Waiting for mock server to bind... ($i/15)"
-            sleep 1
-            if [ $i -eq 15 ]; then
-              echo "Error: Mock server failed to initialize in time."
-              exit 1
-            fi
-          done
-          
-          # 3. Execute the worker directly while the background service is guaranteed alive
-          python -m app.worker
-          
-          # 4. Verify artifact outputs exist safely
+          # 7. Final assertions checking file system output layers
           if [ ! -d "data/output" ]; then
             echo "Error: Output directory matrix missing."
             exit 1

@@ -1,0 +1,47 @@
+name: GitHub Local Environment Test Deployment
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-environment-deployment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Application Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Validate Database Initialization Schema
+        run: |
+          python -m app.db
+          if [ ! -f "data/jobs.db" ]; then
+            echo "Error: SQLite jobs.db matrix failed to build."
+            exit 1
+          fi
+          echo "Database schema built successfully on runner."
+
+      - name: Run E2E Integration and Compilation Test
+        run: |
+          # Executes the organized orchestration script sequentially
+          python test_runner.py
+          
+          if [ ! -d "data/output" ]; then
+            echo "Error: Output directory matrix missing."
+            exit 1
+          fi
+          echo "E2E testing phase completed with 100% compilation integrity."

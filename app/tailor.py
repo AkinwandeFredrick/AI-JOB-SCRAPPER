@@ -19,6 +19,9 @@ def clean_json_response(text: str) -> str:
 
 def tailor_job(job_id: int):
     """Loads a job, optimization prompts, calls Ollama via a raw TCP socket, updates DB, and outputs DOCX."""
+    # Guarantee the output directory exists even if CV generation fails later
+    os.makedirs(os.path.join(BASE_DIR, "data", "output"), exist_ok=True)
+
     conn = get_db_connection()
     job = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     if not job:
@@ -79,7 +82,8 @@ def tailor_job(job_id: int):
         json_body = header_split[1] # Exact array index extraction target fix
         res_json = json.loads(json_body)
         
-        raw_content = res_json["choices"]["message"]["content"]
+        # "choices" is a list in OpenAI-compatible responses, so index the first item
+        raw_content = res_json["choices"][0]["message"]["content"]
         clean_json = clean_json_response(raw_content)
         
         # Validate structural payload integrity before saving

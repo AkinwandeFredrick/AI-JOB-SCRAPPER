@@ -11,7 +11,10 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 class MockOllamaHandler(BaseHTTPRequestHandler):
     def do_POST(self):
-        # Always accept and respond positively regardless of raw incoming chunked data
+        # Drain the request body first so closing the socket can't cause a connection reset
+        length = int(self.headers.get("Content-Length", 0))
+        if length:
+            self.rfile.read(length)
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()

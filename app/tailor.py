@@ -1,6 +1,6 @@
 import os
 import json
-import urllib.request
+import socket
 from app.db import get_db_connection
 from app.pdf_generator import generate_docx_cv
 
@@ -18,7 +18,7 @@ def clean_json_response(text: str) -> str:
     return text.strip()
 
 def tailor_job(job_id: int):
-    """Loads a job, optimization prompts, calls Ollama via proxy-blocked urllib, updates DB, and outputs DOCX."""
+    """Loads a job, optimization prompts, calls Ollama via a raw TCP socket, updates DB, and outputs DOCX."""
     conn = get_db_connection()
     job = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     if not job:
@@ -40,25 +40,45 @@ def tailor_job(job_id: int):
         "temperature": 0.2
     }
     
-    data_bytes = json.dumps(payload).encode("utf-8")
-    url = "http://127.0.0"
+    json_payload = json.dumps(payload)
+    payload_bytes = json_payload.encode("utf-8")
     
-    # FORCE urllib to ignore any hidden global environment proxies completely
-    proxy_handler = urllib.request.ProxyHandler({})
-    opener = urllib.request.build_opener(proxy_handler)
-    
-    req = urllib.request.Request(
-        url, 
-        data=data_bytes, 
-        headers={"Content-Type": "application/json"}
-    )
-    
+    # Construct a raw, proxy-immune HTTP request raw text block
+    http_request = (
+        f"POST /v1/chat/completions HTTP/1.1\r\n"
+        f"Host: 127.0.0.1:11434\r\n"
+        f"Content-Type: application/json\r\n"
+        f"Content-Length: {len(payload_bytes)}\r\n"
+        f"Connection: close\r\n\r\n"
+    ).encode("utf-8") + payload_bytes
+
     try:
-        # Execute the request using our isolated opener
-        with opener.open(req, timeout=60) as response:
-            res_body = response.read().decode("utf-8")
-            res_json = json.loads(res_body)
+        # Open a low-level, direct TCP socket channel
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(60)
+        s.connect(("127.0.0.1", 11434))
+        
+        # Send raw data bytes across the open network socket pipeline
+        s.sendall(http_request)
+        
+        # Receive the raw server text response buffer streams
+        response_bytes = b""
+        while True:
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            response_bytes += chunk
+        s.close()
+        
+        # Parse the raw HTTP response headers away from the target JSON body content
+        response_text = response_bytes.decode("utf-8")
+        header_split = response_text.split("\r\n\r\n", 1)
+        if len(header_split) < 2:
+            raise ValueError("Invalid HTTP response layout received from service socket.")
             
+        json_body = header_split[1]
+        res_json = json.loads(json_body)
+        
         raw_content = res_json["choices"]["message"]["content"]
         clean_json = clean_json_response(raw_content)
         

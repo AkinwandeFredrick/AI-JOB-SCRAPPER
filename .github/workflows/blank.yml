@@ -35,8 +35,9 @@ jobs:
           fi
           echo "Database schema built successfully on runner."
 
-      - name: Start Mock Ollama Local Service API
+      - name: Run E2E Integration and Compilation Test
         run: |
+          # 1. Start the Mock Server directly inside this step's environment execution path
           python -c '
           from fastapi import FastAPI
           import uvicorn
@@ -53,22 +54,25 @@ jobs:
           uvicorn.run(app, host="127.0.0.1", port=11434)
           ' &
           
+          # 2. Wait explicitly for the port listener layer to become active
           echo "Verifying local mock LLM port listener is completely initialized..."
           for i in {1..15}; do
             if nc -z 127.0.0.1 11434; then
               echo "Mock Ollama API is live and listening on port 11434!"
-              exit 0
+              break
             fi
             echo "Waiting for mock server to bind... ($i/15)"
             sleep 1
+            if [ $i -eq 15 ]; then
+              echo "Error: Mock server failed to initialize in time."
+              exit 1
+            fi
           done
-          echo "Error: Mock server failed to initialize in time."
-          exit 1
-
-      - name: Run E2E Integration and Compilation Test
-        run: |
+          
+          # 3. Execute the worker directly while the background service is guaranteed alive
           python -m app.worker
           
+          # 4. Verify artifact outputs exist safely
           if [ ! -d "data/output" ]; then
             echo "Error: Output directory matrix missing."
             exit 1

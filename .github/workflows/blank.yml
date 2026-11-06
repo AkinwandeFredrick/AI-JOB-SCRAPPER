@@ -28,7 +28,6 @@ jobs:
 
       - name: Validate Database Initialization Schema
         run: |
-          # Executes the structural script directly on GitHub's cloud runner
           python -m app.db
           if [ ! -f "data/jobs.db" ]; then
             echo "Error: SQLite jobs.db matrix failed to build."
@@ -38,13 +37,12 @@ jobs:
 
       - name: Start Mock Ollama Local Service API
         run: |
-          # Simulates an Ollama endpoint so app/tailor.py can communicate without crashes
           python -c '
           from fastapi import FastAPI
           import uvicorn
           app = FastAPI()
           @app.post("/v1/chat/completions")
-          def mock_completions():
+          def mock_completions(payload: dict = None):
               return {
                   "choices": [{
                       "message": {
@@ -55,14 +53,12 @@ jobs:
           uvicorn.run(app, host="127.0.0.1", port=11434)
           ' &
           echo "Waiting for simulated local LLM infrastructure to stabilize..."
-          sleep 3
+          sleep 5
 
       - name: Run E2E Integration and Compilation Test
         run: |
-          # Executes the worker processing architecture locally inside GitHub environment
           python -m app.worker
           
-          # Verify the pipeline successfully outputted artifacts
           if [ ! -d "data/output" ]; then
             echo "Error: Output directory matrix missing."
             exit 1

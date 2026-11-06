@@ -52,8 +52,18 @@ jobs:
               }
           uvicorn.run(app, host="127.0.0.1", port=11434)
           ' &
-          echo "Waiting for simulated local LLM infrastructure to stabilize..."
-          sleep 5
+          
+          echo "Verifying local mock LLM port listener is completely initialized..."
+          for i in {1..15}; do
+            if nc -z 127.0.0.1 11434; then
+              echo "Mock Ollama API is live and listening on port 11434!"
+              exit 0
+            fi
+            echo "Waiting for mock server to bind... ($i/15)"
+            sleep 1
+          done
+          echo "Error: Mock server failed to initialize in time."
+          exit 1
 
       - name: Run E2E Integration and Compilation Test
         run: |

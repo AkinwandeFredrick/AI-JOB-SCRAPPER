@@ -18,7 +18,7 @@ def clean_json_response(text: str) -> str:
     return text.strip()
 
 def tailor_job(job_id: int):
-    """Loads a job, optimization prompts, calls Ollama via standard urllib, updates DB, and outputs DOCX."""
+    """Loads a job, optimization prompts, calls Ollama via explicit 127.0.0.1 loopback, updates DB, and outputs DOCX."""
     conn = get_db_connection()
     job = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     if not job:
@@ -41,6 +41,8 @@ def tailor_job(job_id: int):
     }
     
     data_bytes = json.dumps(payload).encode("utf-8")
+    
+    # Using explicit IPv4 loopback to completely prevent IPv6 localhost resolution mismatch crashes
     url = "http://127.0.0"
     
     req = urllib.request.Request(
@@ -50,12 +52,11 @@ def tailor_job(job_id: int):
     )
     
     try:
-        # Bypasses system-level proxy configurations completely
         with urllib.request.urlopen(req, timeout=60) as response:
             res_body = response.read().decode("utf-8")
             res_json = json.loads(res_body)
             
-        raw_content = res_json["choices"][0]["message"]["content"]
+        raw_content = res_json["choices"]["message"]["content"]
         clean_json = clean_json_response(raw_content)
         
         # Validate structural payload integrity before saving

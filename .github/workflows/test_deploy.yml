@@ -1,4 +1,4 @@
-name: GitHub Local Environment Test Deployment
+name: GitHub Local Environment Test Deployment.
 
 on:
   push:

@@ -4,29 +4,41 @@ import time
 import sys
 import os
 
-# 1. Write the isolated mock API server code cleanly to a local file
+# 1. Structure a completely raw, framework-free native HTTP responder script
 mock_code = """
-from fastapi import FastAPI
-import uvicorn
-app = FastAPI()
-@app.post("/v1/chat/completions")
-def mock_completions(payload: dict = None):
-    return {
-        "choices": [{
-            "message": {
-                "content": "{\\"summary\\": \\"Mocked summary matching the JD\\", \\"experience\\": [], \\"skills\\": []}"
-            }
-        }]
-    }
+import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class MockOllamaHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        # Always accept and respond positively regardless of raw incoming chunked data
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        
+        mock_response = {
+            "choices": [{
+                "message": {
+                    "content": "{\\"summary\\": \\"Mocked summary matching the JD\\", \\"experience\\": [], \\"skills\\": []}"
+                }
+            }]
+        }
+        self.wfile.write(json.dumps(mock_response).encode("utf-8"))
+
+    def log_message(self, format, *args):
+        # Suppress logging to keep the runner logs pristine
+        return
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=11434)
+    server = HTTPServer(("127.0.0.1", 11434), MockOllamaHandler)
+    server.serve_forever()
 """
 
 with open("mock_server.py", "w") as f:
     f.write(mock_code.strip())
 
 # 2. Spawn the mock server as a strict managed child process
-print("Spawning managed Mock Ollama API process...", flush=True)
+print("Spawning native Mock Ollama API server process...", flush=True)
 server_proc = subprocess.Popen([sys.executable, "mock_server.py"])
 
 # 3. Block and poll until the port is definitively open and listening

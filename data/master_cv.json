@@ -1,0 +1,15 @@
+{
+  "summary": "Detail-oriented software engineer with explicit experience in designing robust Python automation backend APIs and localized databases.",
+  "experience": [
+    {
+      "title": "Software Developer",
+      "company": "Global Technology Inc",
+      "dates": "2024-Present",
+      "bullets": [
+        "Architected core asynchronous Python components serving client requests under tight transaction processing deadlines.",
+        "Refactored relational database interface layers to optimize persistent storage transaction cycles cleanly."
+      ]
+    }
+  ],
+  "skills": ["Python", "FastAPI", "SQLite", "Git Engine Protocols", "Linux Operations Architecture"]
+}

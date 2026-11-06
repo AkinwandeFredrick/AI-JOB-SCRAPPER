@@ -1,0 +1,81 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+}
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+h1, h2, h3 { color: #2c3e50; }
+.nav-filters { margin-bottom: 20px; }
+.nav-filters a {
+    display: inline-block;
+    padding: 8px 16px;
+    margin-right: 8px;
+    text-decoration: none;
+    background: #e9ecef;
+    color: #495057;
+    border-radius: 4px;
+}
+.nav-filters a.active {
+    background: #007bff;
+    color: #fff;
+}
+.job-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+.job-table th, .job-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #dee2e6;
+}
+.job-table th { background-color: #f1f3f5; }
+.badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+}
+.badge-new { background: #e3f2fd; color: #0d47a1; }
+.badge-processed { background: #fff3e0; color: #e65100; }
+.badge-approved { background: #e8f5e9; color: #1b5e20; }
+.badge-rejected { background: #ffebee; color: #b71c1c; }
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-top: 20px;
+}
+.panel {
+    background: #fdfdfd;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    max-height: 700px;
+    overflow-y: auto;
+}
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.btn-approve { background: #28a745; color: white; }
+.btn-reject { background: #dc3545; color: white; }
+.actions-bar {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Tracked Job Pipelines</h2>
+<div class="nav-filters">
+    <a href="/?status=all" class="{% if current_filter == 'all' %}active{% endif %}">All</a>
+    <a href="/?status=new" class="{% if current_filter == 'new' %}active{% endif %}">New</a>
+    <a href="/?status=processed" class="{% if current_filter == 'processed' %}active{% endif %}">Processed</a>
+    <a href="/?status=approved" class="{% if current_filter == 'approved' %}active{% endif %}">Approved</a>
+    <a href="/?status=rejected" class="{% if current_filter == 'rejected' %}active{% endif %}">Rejected</a>
+</div>
+
+<table class="job-table">
+    <thead>
+        <tr>
+            <th>Role Title</th>
+            <th>Company</th>
+            <th>Location</th>
+            <th>Status</th>
+            <th>Discovered At</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for job in jobs %}
+        <tr>
+            <td><a href="/job/{{ job.id }}">{{ job.title }}</a></td>
+            <td>{{ job.company }}</td>
+            <td>{{ job.location }}</td>
+            <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
+            <td>{{ job.scraped_at }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="5">No tracking data matches this state filter choice.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="/">&larr; Back to Main Feed View</a></p>
+<h2>{{ job.title }} at {{ job.company }}</h2>
+<p><strong>Location:</strong> {{ job.location }} | <strong>Origin Link:</strong> <a href="{{ job.url }}" target="_blank">View Original Post</a></p>
+<p><strong>Status Badge:</strong> <span class="badge badge-{{ job.status }}">{{ job.status }}</span></p>
+
+<div class="actions-bar">
+    <form action="/job/{{ job.id }}/status" method="post">
+        <input type="hidden" name="status" value="approved">
+        <button type="submit" class="btn btn-approve">Mark Approved (Ready to Apply)</button>
+    </form>
+    <form action="/job/{{ job.id }}/status" method="post">
+        <input type="hidden" name="status" value="rejected">
+        <button type="submit" class="btn btn-reject">Reject Entry</button>
+    </form>
+    {% if job.status == 'processed' or job.status == 'approved' %}
+    <a href="/download/{{ job.id }}" class="btn" style="background: #007bff; color: white; text-decoration: none; text-align:center;">Download Tailored Resume (.docx)</a>
+    {% endif %}
+</div>
+
+<div class="grid">
+    <div class="panel">
+        <h3>Original Job Specs Description</h3>
+        <p style="white-space: pre-wrap;">{{ job.description }}</p>
+    </div>
+    <div class="panel">
+        <h3>Optimized Automated ATS CV Blueprint View</h3>
+        {% if tailored %}
+            <pre style="white-space: pre-wrap; font-family: inherit;">{{ tailored.tailored_json }}</pre>
+        {% else %}
+            <p style="color: #666; font-style: italic;">No automated matching compilation has run on this job context sequence yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

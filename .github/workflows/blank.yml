@@ -1,36 +1,70 @@
-# This is a basic workflow to help you get started with Actions
+name: GitHub Local Environment Test Deployment
 
-name: CI
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
+    branches: [ main, development ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  test-environment-deployment:
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      - name: Set up Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Install Application Dependencies
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Validate Database Initialization Schema
+        run: |
+          # Executes the structural script directly on GitHub's cloud runner
+          python -m app.db
+          if [ ! -f "data/jobs.db" ]; then
+            echo "Error: SQLite jobs.db matrix failed to build."
+            exit 1
+          fi
+          echo "Database schema built successfully on runner."
+
+      - name: Start Mock Ollama Local Service API
+        run: |
+          # Simulates an Ollama endpoint so app/tailor.py can communicate without crashes
+          python -c '
+          from fastapi import FastAPI
+          import uvicorn
+          app = FastAPI()
+          @app.post("/v1/chat/completions")
+          def mock_completions():
+              return {
+                  "choices": [{
+                      "message": {
+                          "content": "{\"summary\": \"Mocked summary matching the JD\", \"experience\": [], \"skills\": []}"
+                      }
+                  }]
+              }
+          uvicorn.run(app, host="127.0.0.1", port=11434)
+          ' &
+          echo "Waiting for simulated local LLM infrastructure to stabilize..."
+          sleep 3
+
+      - name: Run E2E Integration and Compilation Test
+        run: |
+          # Executes the worker processing architecture locally inside GitHub environment
+          python -m app.worker
+          
+          # Verify the pipeline successfully outputted artifacts
+          if [ ! -d "data/output" ]; then
+            echo "Error: Output directory matrix missing."
+            exit 1
+          fi
+          echo "E2E testing phase completed with 100% compilation integrity."

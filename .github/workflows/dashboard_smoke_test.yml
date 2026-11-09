@@ -1,0 +1,90 @@
+name: Dashboard Smoke Test
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  dashboard-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Application Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Initialize Database
+        run: python -m app.db
+
+      - name: Populate Data via Worker Pipeline
+        # Reuses the existing orchestration script: mock Ollama -> scraper -> tailor -> DOCX
+        run: |
+          python test_runner.py
+          test -f data/output/tailored_cv_1.docx || { echo "Error: tailored CV was not generated."; exit 1; }
+
+      - name: Start Dashboard
+        run: |
+          nohup python -m uvicorn app.dashboard:app --host 127.0.0.1 --port 8000 > dashboard.log 2>&1 &
+          for i in $(seq 1 20); do
+            if curl -sf -o /dev/null http://127.0.0.1:8000/; then
+              echo "Dashboard is up."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Error: dashboard failed to start."
+          cat dashboard.log
+          exit 1
+
+      - name: Check Dashboard Endpoints
+        run: |
+          set -e
+          BASE=http://127.0.0.1:8000
+
+          echo "GET / lists the scraped job"
+          curl -sf "$BASE/" | grep -q "Senior Python Developer"
+
+          echo "GET /job/1 renders the job detail page"
+          curl -sf "$BASE/job/1" | grep -q "Senior Python Developer"
+
+          echo "GET /job/9999 returns 404 for an unknown job"
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/job/9999")" = "404"
+
+          echo "GET /download/1 returns a valid DOCX file"
+          curl -sf -o downloaded_cv.docx "$BASE/download/1"
+          python -c "import zipfile; assert 'word/document.xml' in zipfile.ZipFile('downloaded_cv.docx').namelist()"
+
+          echo "POST /job/1/status rejects an invalid status"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'status=bogus' "$BASE/job/1/status")" = "400"
+
+          echo "POST /job/1/status approves the job"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'status=approved' "$BASE/job/1/status")" = "303"
+          curl -sf "$BASE/?status=approved" | grep -q "Senior Python Developer"
+
+          echo "All dashboard checks passed."
+
+      - name: Show Dashboard Log on Failure
+        if: failure()
+        run: cat dashboard.log || true
+
+      - name: Upload Generated CVs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tailored-cvs
+          path: data/output/
+          if-no-files-found: ignore
